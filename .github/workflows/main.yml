@@ -1,0 +1,84 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+    tags: ['*']
+    paths-ignore: ['**.md']
+  pull_request:
+    branches: [ master ]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: MSYS2 UCRT64
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: 'msys2 {0}'
+
+    steps:
+      - name: Install dependencies (MSYS2)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-sdl3
+            mingw-w64-ucrt-x86_64-sdl3-net
+            mingw-w64-ucrt-x86_64-openal
+            mingw-w64-ucrt-x86_64-libebur128
+            mingw-w64-ucrt-x86_64-libsndfile
+            mingw-w64-ucrt-x86_64-fluidsynth
+            mingw-w64-ucrt-x86_64-libxmp
+            mingw-w64-ucrt-x86_64-libspng
+
+      - uses: actions/checkout@v7
+
+      - name: Configure
+        run: >-
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DENABLE_WERROR=ON -DENABLE_HARDENING=ON -DENABLE_LTO=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Restore demotest cache
+        id: cache-demotest
+        uses: actions/cache/restore@v6
+        with:
+          path: demotest/extract
+          key: demotest-${{ hashFiles('demotest/config.toml') }}
+
+      - name: Test
+        run: |
+          cd demotest
+          python demotest --jobs 4 --port ../build/src/woof
+
+      - name: Save demotest cache
+        if: steps.cache-demotest.outputs.cache-hit != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v6
+        with:
+          path: demotest/extract
+          key: demotest-${{ hashFiles('demotest/config.toml') }}
+
+      - name: Package
+        run: |
+          cd build
+          cpack
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: MSYS2-UCRT64
+          path: build/*.zip
