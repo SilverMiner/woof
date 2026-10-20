@@ -42,24 +42,11 @@ jobs:
               -DVCPKG_TARGET_TRIPLET=x64-windows-static-release
               -DWITH_DISCORD_RPC=ON
               -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+              -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+              -DCMAKE_EXE_LINKER_FLAGS="/DEBUG:FULL"
+              -DCMAKE_SHARED_LINKER_FLAGS="/DEBUG:FULL"
               -DCMAKE_IGNORE_PATH="C:/Strawberry/perl/bin;C:/Strawberry/c/lib"
               -DENABLE_WERROR=ON -DENABLE_HARDENING=ON -DENABLE_LTO=ON
-
-          - name: MSVC x64 Debug (vcpkg)
-            os: windows-2022
-            shell: pwsh
-            type: vcpkg
-            build-type: Debug
-            triplet: x64-windows-static
-            arch: x64
-            artifact-name: Win-64-Debug
-            artifact-path: build/*.zip
-            extra-options: >-
-              -DCMAKE_TOOLCHAIN_FILE="${env:VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
-              -DVCPKG_TARGET_TRIPLET=x64-windows-static
-              -DWITH_DISCORD_RPC=ON
-              -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-              -DCMAKE_IGNORE_PATH="C:/Strawberry/perl/bin;C:/Strawberry/c/lib"
 
     steps:
       - name: Developer Command Prompt (MSVC)
@@ -97,8 +84,6 @@ jobs:
         run: gh cache delete --repo ${{ github.repository }} ${{ steps.cache-vcpkg.outputs.cache-primary-key }}
 
       - name: Save vcpkg cache
-        # pull requests are restore-only: an entry saved from a PR is scoped to
-        # refs/pull/N/merge and is invisible to master and to other pull requests
         if: matrix.config.type == 'vcpkg' && github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/cache/save@v6
         with:
